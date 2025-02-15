@@ -1,4 +1,4 @@
-//V 1.0
+//V 1.1
 
 #include <Adafruit_NeoPixel.h>
 #include "Adafruit_VL53L0X.h"
@@ -6,22 +6,46 @@
 
 
 // Pinout :
-//        3V3 - Vin VL53LoX
-//        5V  - Vin LedStrip
-//        
-//        5   - data LedStrip
-//        6   - shutDownLox1
-//        7   - shutDownLox2
-//        8   - SDA
-//        9   - SDL
+  //        3V3 - Vin VL53LoX
+  //        5V  - Vin LedStrip
+  //        
+  //        5   - data LedStrip
+  //        6   - shutDownLox1
+  //        7   - shutDownLox2
+  //        8   - SDA           // always same pins 8,9 for I2C on esp32 C3
+  //        9   - SDL           // both sensor are connected here
+
+// TODO :
+  //      - add ESPHome to control
+  //      - only illuminate at night
+  //      - fix delay when lighting up the LEDS ?
+  //      -
 
 
+// LED --------
 #define LED_PIN    5
 #define LED_COUNT 150
 #define BRIGHTNESS 50  //(max = 255)
 #define STANDBY_LED_TIMER 5000
+#define LED_SPEED 20        // speed at which the leds light up one-by-one (ms)
 
+// LiDAR -------
 #define DISTANCE_TRIGGER 200
+#define LiDAR_READ_INTERVAL 100
+
+// Screen Update ----
+#define SCREEN_UPDATE_INTERVAL 300
+
+
+//---------LedStrip----------
+#define COLOR_RED      strip.Color(255, 0, 0)
+#define COLOR_GREEN    strip.Color(0, 255, 0)
+#define COLOR_BLUE     strip.Color(0, 0, 255)
+#define COLOR_WHITE    strip.Color(255, 255, 255)
+
+#define COLOR_WARM_WHITE    strip.Color(255, 240, 180)
+#define COLOR_RED_WHITE    strip.Color(220, 220, 180)
+#define COLOR_COLD_WHITE    strip.Color(255, 255, 220)
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);  // --- WS2812B is GRB
 
@@ -52,13 +76,13 @@ void setup() {
 
 void loop() {
   // Read Sensors
-  if(millis()-VL53ReadInterval > 100){
+  if(millis()-VL53ReadInterval > LiDAR_READ_INTERVAL){
     read_dual_sensors();
     VL53ReadInterval = millis();
   }
 
   // Update the State Machine
-  if(millis()-updateInterval > 300){
+  if(millis()-updateInterval > SCREEN_UPDATE_INTERVAL){
     updateTask();
     updateInterval = millis();
   }  
@@ -97,13 +121,13 @@ void updateTask(){
                 break;
 
             case SENSOR1_TRIGGERED:
-                colorWipe(strip.Color(255, 0, 0), 20); // Red
+                lightUpDirection(COLOR_WARM_WHITE, LED_SPEED, true);
                 ledTimerStart = millis(); // Start Timer
                 state = TIMER_LED_ON;
                 break;
 
             case SENSOR2_TRIGGERED:
-                colorWipe(strip.Color(0, 0, 255), 20); // Blue
+                lightUpDirection(COLOR_COLD_WHITE, LED_SPEED, false);
                 ledTimerStart = millis(); // Start Timer
                 state = TIMER_LED_ON;
                 break;
@@ -113,7 +137,7 @@ void updateTask(){
                 if (sensor1Data < DISTANCE_TRIGGER || sensor2Data < DISTANCE_TRIGGER) {
                     ledTimerStart = millis();
                 }
-                // Turn off LEDs after 20 seconds
+                // Turn off LEDs after delay
                 if (millis() - ledTimerStart > STANDBY_LED_TIMER) {
                     state = EXIT;
                 }
@@ -139,6 +163,23 @@ void initLed(){
 // =================================================
 //              LED COLORS & DRAWING
 // =================================================
+void lightUpDirection(uint32_t color, int wait, bool topToBottom) {
+  if (topToBottom) {
+    for (int i = 0; i < strip.numPixels(); i++) { // Top to bottom
+      strip.setPixelColor(i, color);
+      strip.show();
+      delay(wait);
+    }
+  } else {
+    for (int i = strip.numPixels() - 1; i >= 0; i--) { // Bottom to top
+      strip.setPixelColor(i, color);
+      strip.show();
+      delay(wait);
+    }
+  }
+}
+
+
 
 
 void colorWipe(uint32_t color, int wait) {
@@ -150,10 +191,10 @@ void colorWipe(uint32_t color, int wait) {
 }
 
 void fadeOut(int speed) {
-    for (int i = 255; i >= 0; i -= speed) {
+    for (int i = BRIGHTNESS; i >= 0; i -= speed) {
         strip.setBrightness(i);
         strip.show();
-        delay(50);
+        delay(100);
     }
     strip.clear();
     strip.show();
