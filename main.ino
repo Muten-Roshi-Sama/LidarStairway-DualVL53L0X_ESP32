@@ -1,4 +1,8 @@
-//V 1.1
+//V 1.2
+
+// This project uses 2 ToF VL53L0x Laser Ranging Sensors, a ESP32-C3, a 5m WS2812B Addressable LED Strip and an USB-C Power Supply.
+
+
 
 #include <Adafruit_NeoPixel.h>
 #include "Adafruit_VL53L0X.h"
@@ -29,12 +33,12 @@
 #define STANDBY_LED_TIMER 5000
 #define LED_SPEED 20        // speed at which the leds light up one-by-one (ms)
 
-// LiDAR -------
+// ToF Time of Flight Laser Ranging Sensor-------
 #define DISTANCE_TRIGGER 200
-#define LiDAR_READ_INTERVAL 100
+#define ToF_READ_INTERVAL 100
 
-// Screen Update ----
-#define SCREEN_UPDATE_INTERVAL 300
+// Update ----
+#define UPDATE_TASK_INTERVAL 300
 
 
 //---------LedStrip----------
@@ -76,16 +80,20 @@ void setup() {
 
 void loop() {
   // Read Sensors
-  if(millis()-VL53ReadInterval > LiDAR_READ_INTERVAL){
+  if(millis()-VL53ReadInterval > ToF_READ_INTERVAL){
     read_dual_sensors();
     VL53ReadInterval = millis();
   }
 
   // Update the State Machine
-  if(millis()-updateInterval > SCREEN_UPDATE_INTERVAL){
+  if(millis()-updateInterval > UPDATE_TASK_INTERVAL){
     updateTask();
     updateInterval = millis();
   }  
+
+  // Serial.print("State: ", state, ", Sensor1: ", mea)
+
+
 }
 
 
@@ -95,13 +103,16 @@ void loop() {
 void updateTask(){
   bool debug = true;
 
-  Serial.print("State: ");
-    Serial.println(state);
-    Serial.print("Sensor1: ");
-    Serial.print(sensor1Data);
-    Serial.print(" mm, Sensor2: ");
-    Serial.println(sensor2Data);
-
+  if(debug){
+     Serial.print("State: ");
+      Serial.print(state);
+      Serial.print(", Sensor1: ");
+      Serial.print(sensor1Data);
+      Serial.print(" mm, Sensor2: ");
+      Serial.print(sensor2Data);
+      Serial.println(" mm");
+  }
+   
 
   switch (state) {
             case INIT:
@@ -178,9 +189,6 @@ void lightUpDirection(uint32_t color, int wait, bool topToBottom) {
     }
   }
 }
-
-
-
 
 void colorWipe(uint32_t color, int wait) {
   for(int i=0; i<strip.numPixels(); i++) { // For each pixel in strip...
